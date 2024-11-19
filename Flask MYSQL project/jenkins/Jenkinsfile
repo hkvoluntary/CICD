@@ -1,0 +1,88 @@
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME = 'flask-crud-app'
+        DOCKER_TAG = 'latest'
+        CONTAINER_NAME = 'flask-crud-demo'
+        FLASK_ENV = ''  // Placeholder for the environment variable
+    }
+	
+    stages {
+        stage('Set Environment') {
+            steps {
+                script {
+                    // Prompt user to choose the environment
+                    FLASK_ENV = input(
+                        id: 'flaskEnvInput', message: 'Select the environment:',
+                        parameters: [
+                            choice(name: 'FLASK_ENV', choices: ['production', 'development'], description: 'Choose the environment for the Flask app')
+                        ]
+                    )
+                    echo "Selected FLASK_ENV: ${FLASK_ENV}"
+                }
+            }
+        }
+        
+        stage('Checkout') {
+            steps {
+                // Checkout the code from Git
+                checkout([$class: 'GitSCM',
+                branches: [[name: '*/main' ]],
+                userRemoteConfigs: [[
+                    url: 'https://github.com/hkvoluntary/demo3.git']]
+            	   ])    
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    // Navigate to the 'src' directory and build the Docker image
+                    echo 'Building Docker image in the src directory with FLASK_ENV=${FLASK_ENV}...'
+                    dir('src') {
+                        //sh 'docker build --build-arg FLASK_ENV=${FLASK_ENV} -t $IMAGE_NAME:$DOCKER_TAG .'
+                        sh "docker build --build-arg FLASK_ENV=${FLASK_ENV} -t ${IMAGE_NAME}:${DOCKER_TAG} ."
+                    }
+                }
+            }
+        }
+
+        stage('Run Docker Container') {
+            steps {
+                script {
+                    // Stop and remove any existing container with the same name
+                    sh """
+                        docker stop ${CONTAINER_NAME} || true
+                        docker rm ${CONTAINER_NAME} || true
+                    """
+                    // Run the Docker container to ensure it works (optional)
+                    echo 'Running the Docker container with FLASK_ENV=${FLASK_ENV} locally...'
+                    dir('src') {
+                        //sh 'docker run -d -e FLASK_ENV=${FLASK_ENV} -p 5000:5000 --name $CONTAINER_NAME --rm $IMAGE_NAME:$DOCKER_TAG'
+                    	sh """
+                        	docker run -d -e FLASK_ENV=${FLASK_ENV} \
+                        	-p 5000:5000 \
+                        	--name ${CONTAINER_NAME} ${IMAGE_NAME}:${DOCKER_TAG}
+                    	"""
+                    }
+                }
+            }
+        }
+
+    }
+
+    post {
+        always {
+            echo "Pipeline completed. FLASK_ENV=${FLASK_ENV}"
+        }
+
+        success {
+            echo 'Docker image built and tested locally.'
+        }
+
+        failure {
+            echo 'Something went wrong during the pipeline.'
+        }
+    }
+}

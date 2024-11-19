@@ -1,0 +1,10 @@
+pipeline {
+  agent any
+  stages {
+    stage('slack notification') {
+      steps {
+        slackSend color: 'good', message: 'success message'
+      }
+    }
+  }
+}

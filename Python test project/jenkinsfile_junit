@@ -1,0 +1,39 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Checkout') {
+            steps {
+            checkout([$class: 'GitSCM',
+                branches: [[name: '*/main' ]],
+                userRemoteConfigs: [[
+                    url: 'https://github.com/hkvoluntary/demo2.git']]
+            	   ])            
+            }
+        }
+        stage('Installing packages') {
+            steps {
+                script {
+                    sh 'pip install -r requirements.txt'
+                }
+            }
+        }
+        stage('Build') {
+            steps {
+                sh 'python3 ops.py'
+            }
+        }
+        stage('Test') {
+            steps {
+               sh 'python3 -m pytest -v --junitxml=result.xml'
+            }
+        }      
+   }
+   post {
+      always {
+	      junit "result.xml"
+ 	   }
+   }
+
+
+}

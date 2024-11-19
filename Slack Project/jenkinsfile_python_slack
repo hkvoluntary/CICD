@@ -1,0 +1,77 @@
+pipeline {
+    agent any
+
+    environment {
+        // Define Slack token and default channel for notifications
+        SLACK_CHANNEL = '#training' // Replace with your Slack channel
+        SLACK_CREDENTIAL_ID = 'Slack_Token' // The ID of the Slack credential in Jenkins
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+               script {
+                    slackSend(
+                     channel: SLACK_CHANNEL, 
+                     color: '#439FE0',
+                     message: "Jenknis Starting - JOB: ${env.JOB_NAME} Build#: ${env.BUILD_NUMBER}(<${env.BUILD_URL}|Open>) ",
+                     tokenCredentialId: SLACK_CREDENTIAL_ID
+                     )
+               }
+
+               checkout([$class: 'GitSCM',
+                  branches: [[name: '*/main' ]],
+                  userRemoteConfigs: [[
+                     url: 'https://github.com/hkvoluntary/demo2.git']]
+            	])            
+            }
+        }
+        stage('Installing packages') {
+            steps {
+                script {
+                    sh 'pip install -r requirements.txt'
+                }
+            }
+        }
+        stage('Build') {
+            steps {
+                sh 'python3 ops.py'
+            }
+        }
+        stage('Test') {
+            steps {
+               sh 'python3 -m pytest -v --junitxml=result.xml'
+            }
+        }      
+   }
+   post {
+      // Send notifications based on the build result
+      success {
+         slackSend(
+               channel: SLACK_CHANNEL,
+               color: 'good',
+               message: "Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' succeeded. (<${env.BUILD_URL}|Open>)",
+               tokenCredentialId: SLACK_CREDENTIAL_ID
+         )
+      }
+      failure {
+         slackSend(
+               channel: SLACK_CHANNEL,
+               color: 'danger',
+               message: "Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' failed. (<${env.BUILD_URL}|Open>)",
+               tokenCredentialId: SLACK_CREDENTIAL_ID
+         )
+      }
+      unstable {
+         slackSend(
+               channel: SLACK_CHANNEL,
+               color: 'warning',
+               message: "Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' is unstable. (<${env.BUILD_URL}|Open>)",
+               tokenCredentialId: SLACK_CREDENTIAL_ID
+         )
+      }
+      always {
+	      junit "result.xml"
+ 	   }
+   }
+}
